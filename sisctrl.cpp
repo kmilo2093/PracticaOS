@@ -18,6 +18,15 @@
 using namespace std;
 // our data 
 
+struct  indv {
+	std::string state_name;
+	int id;
+};
+struct info{
+	int id;
+	std::string auto_name;
+	std::vector <indv> list_states;
+};
 struct data {
     std::string recog;
     std::string rest;
@@ -308,6 +317,7 @@ int main()
         sem_init(sem, 1, 1);
 	std::ifstream fin("automata1.yaml");
 	int in;
+	vector <info> list_auto_info;
 	vector < int >out;
 	vector <acep> success;
 	vector <acep> error;
@@ -318,13 +328,16 @@ int main()
 	pipe(pipe_sis);
 	in = pipe_sis[0];
 	string automataName;
+	int cantAuto=doc.size();
 	for (unsigned l = 0; l < doc.size(); l++) {
 	    automata monster;
 	    doc[l] >> monster;
-
+	    info auto_info;
+	   
 	    std::string start;
 	    start = monster.start;
 	    automataName=monster.name;
+	    auto_info.auto_name=automataName;  
 	    for (unsigned i = 0; i < monster.delta_list.size(); i++) {
 		std::vector < std::string > Next;
 		for (unsigned j = 0; j < monster.delta_list[i].trans_list.size(); j++) {
@@ -364,21 +377,33 @@ int main()
 
 		//printf("it's final %d n",final);
 		delta outs = monster.delta_list[i];
-		if (fork() == 0) {
+		
+		pid_t pid;
+		if ((pid=fork()) == 0) {
 		    close(1);
 		    close(0);
-
+		    
 		    state(in_, outs, final, pipe_sis,automataName);
 		}
+		   
+		    indv info_s;
+		    info_s.state_name=monster.delta_list[i].name;
+		    info_s.id=pid;
+		    auto_info.list_states.push_back(info_s);
 
+		    
 		if(!start.compare(monster.delta_list[i].name)){
 		    out.push_back(monster.delta_list[i].pipes[1]);			
 		}
-	    }
 
+		
+	    }
+		 
+		 auto_info.id=getpid();
+		 list_auto_info.push_back(auto_info);
 	}
 
-
+	
 	// lectura
 	
 	int c;
@@ -386,6 +411,7 @@ int main()
 	int rin;
 	int cant;
 	for (;;) {
+           
 	    char buffer[MAX_BUFFER];
 	    FD_ZERO(&fdin);
 	    FD_SET(0, &fdin);
@@ -415,7 +441,41 @@ int main()
 			c=strlen(buffer)+1;
 
 		    }else if (!datos.cmd.compare("info")){
-			std::cout<<"Entro"<<endl;	
+		       YAML::Emitter out;
+		       out << YAML::BeginMap;
+		       out << YAML::Key << "msgtype";
+		       out << YAML::Value << "info";
+		       out << YAML::Key << "info";
+		       out<<YAML::Value<<YAML::BeginMap;
+			
+		       for(unsigned k=0; k<list_auto_info.size();k++){
+			       out << YAML::Key << "automata";
+		               out << YAML::Value << list_auto_info[k].auto_name;
+			       out << YAML::Key << "ppid";
+		               out << YAML::Value << list_auto_info[k].id;
+			       //out <<YAML::Value<<YAML::BeginMap;	
+   			       for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
+       				
+				out << YAML::Key <<  "-node";
+		                out << YAML::Value << list_auto_info[k].list_states[m].state_name;
+			        out << YAML::Key << "pid";
+		                out << YAML::Value << list_auto_info[k].list_states[m].id;	
+			       }
+			       //out << YAML::EndMap;
+		         }
+			out << YAML::EndMap;
+		        out << YAML::EndMap;
+			strcpy(buffer, out.c_str());
+			int res;
+		        res = write(1, buffer, strlen(buffer));
+			printf("\n");
+			continue;
+			 if (res < -1) {
+			    fprintf(stderr, "Error en salida estandar padre");
+		         } else {
+			    fprintf(stdout, "\n");
+		        }
+
 		    }else if (!datos.cmd.compare("stop")){
 			std::cout<<"Entro"<<endl;	
 		    }else{
@@ -443,7 +503,7 @@ int main()
 		    
 			acep ac;
 		        ac.name=automata;
-			ac.pos=datos.recog.size();
+			ac.pos=datos.recog.size()+1;
 			datos.recog.insert(datos.recog.size(),datos.rest);
 			ac.msg=datos.recog;
 			switch (codeTerm){
@@ -480,7 +540,7 @@ int main()
 			    fprintf(stderr, "Error en salida tuberia padre");
 			}
 		    }
-		} else if (cant>2) {
+		} else if (cant==cantAuto) {
 		    int res;
 	               if(error.size()>0){
 		       YAML::Emitter out;
@@ -504,8 +564,11 @@ int main()
 			error.clear();
 			strcpy(buffer, out.c_str());
 		        res = write(1, buffer, strlen(buffer));
+			if (res < -1) {
+			fprintf(stderr, "Error en salida estandar padre");
+		          }
 			}
-			printf("\n");
+			
 			if(success.size()>0){
 		       YAML::Emitter out;
 		       out << YAML::BeginMap;
@@ -529,9 +592,9 @@ int main()
 			}
 		    if (res < -1) {
 			fprintf(stderr, "Error en salida estandar padre");
-		    } else {
-			fprintf(stdout, "\n");
-		    }
+		    }else{
+				printf("\n");
+			}
 		}
 	    }
 	}
