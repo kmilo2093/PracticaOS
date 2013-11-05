@@ -441,6 +441,8 @@ int main()
 			c=strlen(buffer)+1;
 
 		    }else if (!datos.cmd.compare("info")){
+			
+		      if(!datos.msg.compare("~")){
 		       YAML::Emitter out;
 		       out << YAML::BeginMap;
 		       out << YAML::Key << "msgtype";
@@ -475,6 +477,61 @@ int main()
 		         } else {
 			    fprintf(stdout, "\n");
 		        }
+			}else{
+				
+				int entro=0;
+			       for(unsigned k=0; k<list_auto_info.size();k++){
+				if(!datos.msg.compare(list_auto_info[k].auto_name)){
+				       entro=1;
+				       YAML::Emitter out;
+				       out << YAML::BeginMap;
+				       out << YAML::Key << "msgtype";
+				       out << YAML::Value << "info";
+				       out << YAML::Key << "info";
+				       out<<YAML::Value<<YAML::BeginMap;
+				       out << YAML::Key << "automata";
+				       out << YAML::Value << list_auto_info[k].auto_name;
+				       out << YAML::Key << "ppid";
+				       out << YAML::Value << list_auto_info[k].id;
+				       	
+	   			       for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
+	       				
+					out << YAML::Key <<  "-node";
+				        out << YAML::Value << list_auto_info[k].list_states[m].state_name;
+					out << YAML::Key << "pid";
+				        out << YAML::Value << list_auto_info[k].list_states[m].id;	
+				       }
+					out << YAML::EndMap;
+				        out << YAML::EndMap;
+					strcpy(buffer, out.c_str());
+					int res;
+					res = write(1, buffer, strlen(buffer));
+					printf("\n");
+					 if (res < -1) {
+					    fprintf(stderr, "Error en salida estandar padre");
+					 } else {
+					    fprintf(stdout, "\n");
+					}
+					
+					break;
+				 }
+				}
+				 if (!entro){
+					string n_found= "No ha sido encontrado ninguna automata con esa caracteristica \n";
+					
+					strcpy(buffer, n_found.c_str());
+					int res;
+					res = write(1, buffer, strlen(buffer));
+					printf("\n");
+					 if (res < -1) {
+					    fprintf(stderr, "Error en salida estandar padre");
+					 } else {
+					    fprintf(stdout, "\n");
+					}
+					continue;
+				}
+				continue;
+			}
 
 		    }else if (!datos.cmd.compare("stop")){
 			std::cout<<"Entro"<<endl;	
@@ -566,7 +623,9 @@ int main()
 		        res = write(1, buffer, strlen(buffer));
 			if (res < -1) {
 			fprintf(stderr, "Error en salida estandar padre");
-		          }
+		        }else{
+			 printf("\n");
+			}
 			}
 			
 			if(success.size()>0){
