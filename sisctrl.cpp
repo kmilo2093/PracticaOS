@@ -13,6 +13,8 @@
 #include <sys/select.h>
 #include <semaphore.h>
 #include <fcntl.h>
+#include <errno.h>
+#include <signal.h>
 #define MAX_BUFFER 512
 #define SNAME "/mysem"
 using namespace std;
@@ -309,7 +311,10 @@ void operator >>(const YAML::Node & node, automata & automata)
     }
 }
 
-
+void killer(int signum){
+		printf("signal \n");
+		exit(signum);
+}
 int main()
 {
     try {
@@ -403,7 +408,7 @@ int main()
 		 list_auto_info.push_back(auto_info);
 	}
 
-	
+	signal(SIGINT,killer);
 	// lectura
 	
 	int c;
@@ -534,9 +539,21 @@ int main()
 			}
 
 		    }else if (!datos.cmd.compare("stop")){
-			std::cout<<"Entro"<<endl;	
+			
+			for(unsigned k=0; k<list_auto_info.size();k++){
+			       
+   			       for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
+				int status;
+		                kill(list_auto_info[k].list_states[m].id,SIGKILL);
+				wait(&status);
+				if(WIFEXITED(status)){
+					WEXITSTATUS(status);
+				}	
+			       }  
+		         }
+				kill(list_auto_info[0].id,SIGKILL);	
 		    }else{
-			std::cout<<"porque"<<endl;
+			std::cout<<"ha ocurrido un error en la ejecucion del programa ;)"<<endl;
 		    }
 
 		} else if (FD_ISSET(in, &fdin)) {
