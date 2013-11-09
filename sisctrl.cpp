@@ -79,6 +79,45 @@ struct automata {
 
 };
 
+//metodo que crea el yaml de aceptacion para cada estado
+void emision_acep(unsigned size, char *buffer,string limit,string str){
+			    YAML::Emitter out_1;
+			    out_1 << YAML::BeginMap;
+			    out_1 << YAML::Key << "recog";
+			    out_1 << YAML::Value << limit.c_str();
+			    out_1 << YAML::Key << "rest";
+			    string rest;
+			    if (str.size() - size > 1) {
+				for (unsigned p = size; p < str.size(); p++) {
+				    rest.push_back(str[p]);
+			    }} else {
+
+				rest = "";
+			    }
+			    out_1 << YAML::Value << rest;
+			    out_1 << YAML::EndMap;
+			    string join = out_1.c_str();
+			    join.insert(0, "{");
+			    join.insert(join.size(), "}");
+			    strcpy(buffer, join.c_str());
+
+}
+//metodo que crea el yaml de fallo para cada estado
+void emision_fallo(string str, char *buffer,string automata){
+ 		    YAML::Emitter out;
+		    out << YAML::BeginMap;
+		    out << YAML::Key << "codterm";
+		    out << YAML::Value << 1;
+		    out << YAML::Key << "recog";
+		    out << YAML::Value << "";
+		    out << YAML::Key << "rest";
+		    out << YAML::Value << str.substr(0, str.size() - 1);
+		    out << YAML::Key << "auto";
+		    out << YAML::Value <<automata;
+		    out << YAML::EndMap;
+		    strcpy(buffer, out.c_str());
+
+}
 
 // metodo que ejecutan todos los procesos estado
 void state(int in, delta out, int final, int pipe_sis[], string automata)
@@ -132,8 +171,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 			    string join = out_1.c_str();
 			    join.insert(0, "{");
 			    join.insert(join.size(), "}");
-			    strcpy(buffer, join.c_str());
-			    //std::cout<<out.trans_list[i].next<<endl;
+			    strcpy(buffer, join.c_str());   
 			    write(out.trans_list[i].tuberiaSalida, buffer, strlen(buffer));
 			    break;
 			}
@@ -144,7 +182,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 
 		if (!entro && datos.rest.size() == 0 && final) {
 
-		    //printf("it is final %d n",final);
+		    
 		    YAML::Emitter out;
 		    out << YAML::BeginMap;
 		    out << YAML::Key << "codterm";
@@ -155,7 +193,6 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 		    out << YAML::Value << datos.rest;
 		    out << YAML::Key << "auto";
 		    out << YAML::Value << automata;
-		    
 		    out << YAML::EndMap;
 		    
 		    strcpy(buffer, out.c_str());
@@ -181,12 +218,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 		    write(pipe_sis[1], buffer, strlen(buffer));
 		  
 
-		} else {
-
-
-		}
-
-
+		} 
 	    } else {
 		int entro = 0;
 		for (unsigned i = 0; i < out.trans_list.size(); i++) {
@@ -196,25 +228,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 			string part = str.substr(0, size);
 			if (!part.compare(limit)) {
 			    entro = 1;
-			    YAML::Emitter out_1;
-			    out_1 << YAML::BeginMap;
-			    out_1 << YAML::Key << "recog";
-			    out_1 << YAML::Value << limit.c_str();
-			    out_1 << YAML::Key << "rest";
-			    string rest;
-			    if (str.size() - size > 1) {
-				for (unsigned p = size; p < str.size(); p++) {
-				    rest.push_back(str[p]);
-			    }} else {
-
-				rest = "";
-			    }
-			    out_1 << YAML::Value << rest;
-			    out_1 << YAML::EndMap;
-			    string join = out_1.c_str();
-			    join.insert(0, "{");
-			    join.insert(join.size(), "}");
-			    strcpy(buffer, join.c_str());
+			    emision_acep(size,buffer,limit,str); 
 			    write(out.trans_list[i].tuberiaSalida, buffer, strlen(buffer));
 			    break;
 			}
@@ -222,21 +236,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 		    }
 		}
 		if (!entro) {
-
-
-		    YAML::Emitter out;
-		    out << YAML::BeginMap;
-		    out << YAML::Key << "codterm";
-		    out << YAML::Value << 1;
-		    out << YAML::Key << "recog";
-		    out << YAML::Value << "";
-		    out << YAML::Key << "rest";
-		    out << YAML::Value << str.substr(0, str.size() - 1);
-		    out << YAML::Key << "auto";
-		    out << YAML::Value <<automata;
-		    out << YAML::EndMap;
-		    std::cout<<"\n"<<endl;
-		    strcpy(buffer, out.c_str());
+		    emision_fallo(str,buffer,automata);
 		    sem_wait(sem);
 		    write(pipe_sis[1], buffer, strlen(buffer));
 	            
