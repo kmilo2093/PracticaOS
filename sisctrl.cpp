@@ -17,6 +17,7 @@
 #include <signal.h>
 #define MAX_BUFFER 512
 #define SNAME "/mysem"
+#define AUTO_NO_ENC "No ha sido encontrado ninguna automata con esa caracteristica";
 using namespace std;
 // our data 
 
@@ -79,7 +80,7 @@ struct automata {
 };
 
 
-
+// metodo que ejecutan todos los procesos estado
 void state(int in, delta out, int final, int pipe_sis[], string automata)
 {
     sem_t *sem= sem_open(SNAME,0);
@@ -245,7 +246,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
     }
 }
 
-// now the extraction operators for these types
+// obtención especifica de los datos obtenidos en el archivo yaml
 
 void operator >>(const YAML::Node & node, data_user & data_user)
 {
@@ -310,144 +311,13 @@ void operator >>(const YAML::Node & node, automata & automata)
 	automata.delta_list.push_back(delta_1);
     }
 }
-
+// asesina todo de manera mas sencilla
 void killer(int signum){
-		printf("signal \n");
 		exit(signum);
 }
-int main()
-{
-    try {
-	sem_t *sem = sem_open(SNAME, O_CREAT, 0644,1);
-        sem_init(sem, 1, 1);
-	std::ifstream fin("automata1.yaml");
-	int in;
-	vector <info> list_auto_info;
-	vector < int >out;
-	vector <acep> success;
-	vector <acep> error;
-	YAML::Parser parser(fin);
-	YAML::Node doc;
-	parser.GetNextDocument(doc);
-	int pipe_sis[2];
-	pipe(pipe_sis);
-	in = pipe_sis[0];
-	string automataName;
-	int cantAuto=doc.size();
-	for (unsigned l = 0; l < doc.size(); l++) {
-	    automata monster;
-	    doc[l] >> monster;
-	    info auto_info;
-	   
-	    std::string start;
-	    start = monster.start;
-	    automataName=monster.name;
-	    auto_info.auto_name=automataName;  
-	    for (unsigned i = 0; i < monster.delta_list.size(); i++) {
-		std::vector < std::string > Next;
-		for (unsigned j = 0; j < monster.delta_list[i].trans_list.size(); j++) {
-		    std::string help;
-		    help.assign(monster.delta_list[i].trans_list[j].next);
-		    Next.push_back(help);
-		}
-		std::sort(Next.begin(), Next.end());
-		Next.erase(std::unique(Next.begin(), Next.end()), Next.end());
+// emision de datos para la caracteristica de info msg=null
 
-		int in_;
-		in_ = monster.delta_list[i].pipes[0];
-
-		for (unsigned k = 0; k < monster.delta_list[i].trans_list.size(); k++) {
-		    for (unsigned p = 0; p < monster.delta_list.size(); p++) {
-
-
-
-			if (!monster.delta_list[p].name.compare(monster.delta_list[i].trans_list[k].next)) {
-			    //std::cout<<"copiando tuberia de "<<monster.delta_list[p].name<<endl;
-			    monster.delta_list[i].trans_list[k].tuberiaSalida = monster.delta_list[p].pipes[1];
-			    break;
-			}
-
-
-		    }
-		}
-
-		int final = 0;
-		for (unsigned k = 0; k < monster.final.size(); k++) {
-		    if (!monster.delta_list[i].name.compare(monster.final[k])) {
-			//std::cout<<"Im final "<<monster.delta_list[i].name<<endl;                             
-			final = 1;
-			break;
-		    }
-		}
-
-		//printf("it's final %d n",final);
-		delta outs = monster.delta_list[i];
-		
-		pid_t pid;
-		if ((pid=fork()) == 0) {
-		    close(1);
-		    close(0);
-		    
-		    state(in_, outs, final, pipe_sis,automataName);
-		}
-		   
-		    indv info_s;
-		    info_s.state_name=monster.delta_list[i].name;
-		    info_s.id=pid;
-		    auto_info.list_states.push_back(info_s);
-
-		    
-		if(!start.compare(monster.delta_list[i].name)){
-		    out.push_back(monster.delta_list[i].pipes[1]);			
-		}
-
-		
-	    }
-		 
-		 auto_info.id=getpid();
-		 list_auto_info.push_back(auto_info);
-	}
-
-	signal(SIGINT,killer);
-	// lectura
-	
-	int c;
-	fd_set fdin;
-	int rin;
-	int cant;
-	for (;;) {
-           
-	    char buffer[MAX_BUFFER];
-	    FD_ZERO(&fdin);
-	    FD_SET(0, &fdin);
-	    FD_SET(in, &fdin);
-	    rin = select((in + 1), &fdin, NULL, NULL, NULL);
-
-	    if (rin == 1) {
-		if (FD_ISSET(0, &fdin)) {
-		    
-		    c = read(0, buffer, MAX_BUFFER);
-		    
-		    string str(buffer,c);
-		   
-		    std::stringstream ss(str);
-
-	            YAML::Parser parser(ss);
-		    YAML::Node doc;
-		    parser.GetNextDocument(doc);
-		    data_user  datos;
-		    doc ["cmd"] >> datos.cmd;
-		    doc ["msg"] >> datos.msg;
-
-		    if (!datos.cmd.compare("send")){
-			cant=0;
-			strcpy(buffer,datos.msg.c_str());
-
-			c=strlen(buffer)+1;
-
-		    }else if (!datos.cmd.compare("info")){
-			
-		      if(!datos.msg.compare("~")){
+void emision_info_full(vector <info>  list_auto_info, char *buffer){
 		       YAML::Emitter out;
 		       out << YAML::BeginMap;
 		       out << YAML::Key << "msgtype";
@@ -473,42 +343,152 @@ int main()
 			out << YAML::EndMap;
 		        out << YAML::EndMap;
 			strcpy(buffer, out.c_str());
-			int res;
-		        res = write(1, buffer, strlen(buffer));
-			printf("\n");
-			continue;
-			 if (res < -1) {
+}
+
+// emision especifia del yaml de un estado particular
+void emision_info_espc(vector <info>  list_auto_info, char *buffer, unsigned k){
+	 YAML::Emitter out;
+	 out << YAML::BeginMap;
+	 out << YAML::Key << "msgtype";
+	 out << YAML::Value << "info";
+	 out << YAML::Key << "info";
+	 out<<YAML::Value<<YAML::BeginMap;
+	 out << YAML::Key << "automata";
+	 out << YAML::Value << list_auto_info[k].auto_name;
+	 out << YAML::Key << "ppid";
+	 out << YAML::Value << list_auto_info[k].id;     	
+	 for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
+			  				
+		out << YAML::Key <<  "-node";
+		out << YAML::Value << list_auto_info[k].list_states[m].state_name;
+		out << YAML::Key << "pid";
+		out << YAML::Value << list_auto_info[k].list_states[m].id;	
+	 }
+	 out << YAML::EndMap;
+	 out << YAML::EndMap;
+	 strcpy(buffer, out.c_str());
+}
+
+// metodo para asesinar a todos los procesos
+void kill_everything (vector <info>  list_auto_info){
+  for(unsigned k=0; k<list_auto_info.size();k++){			       
+      for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
+	 int status;
+	 kill(list_auto_info[k].list_states[m].id,SIGKILL);
+	 wait(&status);
+	 if(WIFEXITED(status)){
+	     WEXITSTATUS(status);
+	 }	
+      }  
+   }
+  kill(list_auto_info[0].id,SIGKILL);
+}
+
+// emision de mensajes de rechazo
+void emision_rej(vector <acep> error, char *buffer){
+
+		       YAML::Emitter out;
+		       out << YAML::BeginMap;
+		       out << YAML::Key << "msgtype";
+		       out << YAML::Value << "reject";
+		       out << YAML::Key << "reject";
+		       out<<YAML::Value<<YAML::BeginMap;
+		
+		       for(unsigned k=0; k<error.size();k++){
+			       out << YAML::Key << "automata";
+		               out << YAML::Value << error[k].name;
+			       out << YAML::Key << "msg";
+		               out << YAML::Value << error[k].msg;
+			       out << YAML::Key << "pos";
+		               out << YAML::Value << error[k].pos;		
+							  
+		         }
+			out << YAML::EndMap;
+		        out << YAML::EndMap;
+			strcpy(buffer, out.c_str());
+}
+
+// emision de mensajes de aceptacion
+void emision_acep(vector <acep> success, char *buffer){
+YAML::Emitter out;
+		       out << YAML::BeginMap;
+		       out << YAML::Key << "msgtype";
+		       out << YAML::Value << "accept";
+		       out << YAML::Key << "accept";
+		       out<<YAML::Value<<YAML::BeginMap;
+		
+		       for(unsigned k=0; k<success.size();k++){
+			       out << YAML::Key << "automata";
+		               out << YAML::Value << success[k].name;
+			       out << YAML::Key << "msg";
+		               out << YAML::Value << success[k].msg;		
+							  
+		         }
+			out << YAML::EndMap;
+		        out << YAML::EndMap;
+			strcpy(buffer, out.c_str());
+}
+
+// metodo de  procedimiento y lectura 
+void lectura_larga(vector <info>  list_auto_info ,vector < int >out, unsigned cantAuto,sem_t *sem,int in){
+ 
+	vector <acep> success;
+	vector <acep> error;
+	int c;
+	fd_set fdin;
+	int rin;
+	unsigned cant;
+	for (;;) {
+           
+	    char buffer[MAX_BUFFER];
+	    FD_ZERO(&fdin);
+	    FD_SET(0, &fdin);
+	    FD_SET(in, &fdin);
+	    rin = select((in + 1), &fdin, NULL, NULL, NULL);
+
+	    if (rin == 1) {
+		if (FD_ISSET(0, &fdin)) {
+		    
+		    c = read(0, buffer, MAX_BUFFER);
+		    
+		    // adquisición de datos ingresados desde consola
+		    
+			    string str(buffer,c);
+			    std::stringstream ss(str);
+			    YAML::Parser parser(ss);
+			    YAML::Node doc;
+			    parser.GetNextDocument(doc);
+			    data_user  datos;
+			    doc ["cmd"] >> datos.cmd;
+			    doc ["msg"] >> datos.msg;
+		    
+
+		    if (!datos.cmd.compare("send")){
+			cant=0;
+			strcpy(buffer,datos.msg.c_str());
+			c=strlen(buffer)+1;
+
+		    }else if (!datos.cmd.compare("info")){
+			
+		      if(!datos.msg.compare("~")){
+
+		          emision_info_full(list_auto_info,buffer);
+			  int res;
+		          res = write(1, buffer, strlen(buffer));
+			   if (res < -1) {
 			    fprintf(stderr, "Error en salida estandar padre");
-		         } else {
+		          } else {
 			    fprintf(stdout, "\n");
-		        }
+		          }
+			  continue;
+
 			}else{
 				
-				int entro=0;
+			       int entro=0;
 			       for(unsigned k=0; k<list_auto_info.size();k++){
 				if(!datos.msg.compare(list_auto_info[k].auto_name)){
 				       entro=1;
-				       YAML::Emitter out;
-				       out << YAML::BeginMap;
-				       out << YAML::Key << "msgtype";
-				       out << YAML::Value << "info";
-				       out << YAML::Key << "info";
-				       out<<YAML::Value<<YAML::BeginMap;
-				       out << YAML::Key << "automata";
-				       out << YAML::Value << list_auto_info[k].auto_name;
-				       out << YAML::Key << "ppid";
-				       out << YAML::Value << list_auto_info[k].id;
-				       	
-	   			       for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
-	       				
-					out << YAML::Key <<  "-node";
-				        out << YAML::Value << list_auto_info[k].list_states[m].state_name;
-					out << YAML::Key << "pid";
-				        out << YAML::Value << list_auto_info[k].list_states[m].id;	
-				       }
-					out << YAML::EndMap;
-				        out << YAML::EndMap;
-					strcpy(buffer, out.c_str());
+				        emision_info_espc(list_auto_info,buffer,k);
 					int res;
 					res = write(1, buffer, strlen(buffer));
 					printf("\n");
@@ -522,8 +502,7 @@ int main()
 				 }
 				}
 				 if (!entro){
-					string n_found= "No ha sido encontrado ninguna automata con esa caracteristica \n";
-					
+					string n_found= AUTO_NO_ENC;
 					strcpy(buffer, n_found.c_str());
 					int res;
 					res = write(1, buffer, strlen(buffer));
@@ -533,27 +512,14 @@ int main()
 					 } else {
 					    fprintf(stdout, "\n");
 					}
-					continue;
 				}
 				continue;
 			}
 
 		    }else if (!datos.cmd.compare("stop")){
-			
-			for(unsigned k=0; k<list_auto_info.size();k++){
-			       
-   			       for(unsigned m=0; m<list_auto_info[k].list_states.size();m++){
-				int status;
-		                kill(list_auto_info[k].list_states[m].id,SIGKILL);
-				wait(&status);
-				if(WIFEXITED(status)){
-					WEXITSTATUS(status);
-				}	
-			       }  
-		         }
-				kill(list_auto_info[0].id,SIGKILL);	
+				kill_everything(list_auto_info);	
 		    }else{
-			std::cout<<"ha ocurrido un error en la ejecucion del programa ;)"<<endl;
+			std::cout<<"comando no reconocido; error en ejecucion."<<endl;
 		    }
 
 		} else if (FD_ISSET(in, &fdin)) {
@@ -596,7 +562,7 @@ int main()
 				break;
 			}
 
-			strcpy(buffer," wait please ...\n");
+			strcpy(buffer,"llego algo...\n");
 			c=strlen(buffer);
 		}
 	    }
@@ -617,53 +583,21 @@ int main()
 		} else if (cant==cantAuto) {
 		    int res;
 	               if(error.size()>0){
-		       YAML::Emitter out;
-		       out << YAML::BeginMap;
-		       out << YAML::Key << "msgtype";
-		       out << YAML::Value << "reject";
-		       out << YAML::Key << "reject";
-		       out<<YAML::Value<<YAML::BeginMap;
-		
-		       for(unsigned k=0; k<error.size();k++){
-			       out << YAML::Key << "automata";
-		               out << YAML::Value << error[k].name;
-			       out << YAML::Key << "msg";
-		               out << YAML::Value << error[k].msg;
-			       out << YAML::Key << "pos";
-		               out << YAML::Value << error[k].pos;		
-							  
-		         }
-			out << YAML::EndMap;
-		        out << YAML::EndMap;
-			error.clear();
-			strcpy(buffer, out.c_str());
-		        res = write(1, buffer, strlen(buffer));
-			if (res < -1) {
-			fprintf(stderr, "Error en salida estandar padre");
+
+		           emision_rej(error,buffer);
+			   error.clear();
+		           res = write(1, buffer, strlen(buffer));
+
+                  	if (res < -1) {
+			    fprintf(stderr, "Error en salida estandar padre");
 		        }else{
-			 printf("\n");
+			    printf("\n");
 			}
-			}
+		       }
 			
-			if(success.size()>0){
-		       YAML::Emitter out;
-		       out << YAML::BeginMap;
-		       out << YAML::Key << "msgtype";
-		       out << YAML::Value << "accept";
-		       out << YAML::Key << "accept";
-		       out<<YAML::Value<<YAML::BeginMap;
-		
-		       for(unsigned k=0; k<success.size();k++){
-			       out << YAML::Key << "automata";
-		               out << YAML::Value << success[k].name;
-			       out << YAML::Key << "msg";
-		               out << YAML::Value << success[k].msg;		
-							  
-		         }
-			out << YAML::EndMap;
-		        out << YAML::EndMap;
+		       if(success.size()>0){
+		        emision_acep(success,buffer);
 			success.clear();
-			strcpy(buffer, out.c_str());
 		        res = write(1, buffer, strlen(buffer));
 			}
 		    if (res < -1) {
@@ -674,13 +608,124 @@ int main()
 		}
 	    }
 	}
-	fprintf(stderr, "Termino padren");
+	fprintf(stderr, "Termino sisctrl con error");
 
+}
+
+int main()
+{
+    try {
+//creación de un semaforo para poder que los procesos accedan adecuadamente a la tuberia del sisctrl
+// 0644 permisos de lectura y escritura y el 1 significa que es un semaforo compartido entre procesos
+	sem_t *sem = sem_open(SNAME, O_CREAT, 0644,1); 
+        sem_init(sem, 1, 1);
+
+	//lectura del archivo .yaml
+	std::ifstream fin("automata1.yaml");
+
+	// creación de datos que seran utilizados y identificado posteriormente
+	int in;
+	vector <info> list_auto_info;
+	vector < int >out;
+
+	
+
+	// Parser yaml
+	YAML::Parser parser(fin);
+	YAML::Node doc;
+	parser.GetNextDocument(doc);
+
+	//Creación de la tuberia del sisctrl
+	int pipe_sis[2];
+	pipe(pipe_sis);
+// in sera la variable donde los procesos tiene que copiar para cualquier resultado en su ejecución
+	in = pipe_sis[0];
+
+	
+	string automataName;
+	unsigned cantAuto=doc.size();
+
+	// ciclo para recolectar los datos del yaml y lanzar los procesos
+	for (unsigned l = 0; l < cantAuto; l++) {
+
+	    automata automata_s;
+	    doc[l] >> automata_s;
+
+	    info auto_info;
+	    //identificación del automata inicial
+	    std::string start;
+	    start = automata_s.start;
+
+	    automataName=automata_s.name;
+	    auto_info.auto_name=automataName;
+
+  	    // obtencion de los de cada  automata y estados 
+	    for (unsigned i = 0; i < automata_s.delta_list.size(); i++) {
+		
+		// definicion de la tuberia input de un estado
+		int in_;
+		in_ = automata_s.delta_list[i].pipes[0];
+
+		// asiganción de tuberias de salida para cada transición en cada estado(Proceso)
+		for (unsigned k = 0; k < automata_s.delta_list[i].trans_list.size(); k++) {
+		    for (unsigned p = 0; p < automata_s.delta_list.size(); p++) {
+			if (!automata_s.delta_list[p].name.compare(automata_s.delta_list[i].trans_list[k].next)) {
+		 
+			    automata_s.delta_list[i].trans_list[k].tuberiaSalida = automata_s.delta_list[p].pipes[1];
+			    break;
+			}
+		    }
+		}
+
+
+		// identificar cuales estados son finales
+		int final = 0;
+		for (unsigned k = 0; k < automata_s.final.size(); k++) {
+		    if (!automata_s.delta_list[i].name.compare(automata_s.final[k])) {                
+			final = 1;
+			break;
+		    }
+		}
+
+		delta outs = automata_s.delta_list[i];
+
+		// id de cada proceso creado 
+		pid_t pid;
+
+		if ((pid=fork()) == 0) {
+		    // cierre de lectura y escritura de consola
+		    close(1);
+		    close(0); 
+		    //rutina a seguir para esa proceso creado   
+		    state(in_, outs, final, pipe_sis,automataName);
+		}
+		    // adquisición de caracteristicas del proceso creado 
+		    indv info_s;
+		    info_s.state_name=automata_s.delta_list[i].name;
+		    info_s.id=pid;
+		    auto_info.list_states.push_back(info_s);
+
+		 // OUT guarda las tuberias de escritura de todos los estados iniciales
+		if(!start.compare(automata_s.delta_list[i].name)){
+		    out.push_back(automata_s.delta_list[i].pipes[1]);			
+		}
+
+	    }
+		 // adquisición de caracteristicas del proceso creado
+		 auto_info.id=getpid();
+		 list_auto_info.push_back(auto_info);
+	}
+
+	// obtención de la señal ctrl-c por parte del usuario 
+	signal(SIGINT,killer);
+
+	// lectura de datos desde consola y respuesta por parte del sisctrl
+	lectura_larga(list_auto_info,out,cantAuto,sem,in);
     }
     catch(YAML::ParserException & e) {
-	std::cout << e.what() <<endl;
+	  std::cout << "houston poseemos problemas..."<<endl;
+	  std::cout << e.what() <<endl;
     }
 
     return 0;
 }
-
