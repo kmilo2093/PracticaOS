@@ -163,8 +163,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 				for (unsigned p = size; p < datos.rest.size(); p++) {
 				    rest.push_back(datos.rest[p]);
 
-                   		}
-			    } else {
+			    }} else {
 				rest = "";
 			    }
 			    out_1 << YAML::Value << rest;
@@ -176,11 +175,14 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 			    write(out.trans_list[i].tuberiaSalida, buffer, strlen(buffer));
 			    break;
 			}
+
 		    }
+
 		}
 
 		if (!entro && datos.rest.size() == 0 && final) {
 
+		    
 		    YAML::Emitter out;
 		    out << YAML::BeginMap;
 		    out << YAML::Key << "codterm";
@@ -192,7 +194,7 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 		    out << YAML::Key << "auto";
 		    out << YAML::Value << automata;
 		    out << YAML::EndMap;
-
+		    
 		    strcpy(buffer, out.c_str());
 		    sem_wait(sem);
 		    write(pipe_sis[1], buffer, strlen(buffer));
@@ -218,7 +220,6 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 
 		} 
 	    } else {
-
 		int entro = 0;
 		for (unsigned i = 0; i < out.trans_list.size(); i++) {
 		    string limit = out.trans_list[i].in;
@@ -234,11 +235,11 @@ void state(int in, delta out, int final, int pipe_sis[], string automata)
 
 		    }
 		}
-
 		if (!entro) {
 		    emision_fallo(str,buffer,automata);
 		    sem_wait(sem);
 		    write(pipe_sis[1], buffer, strlen(buffer));
+	            
 		}
 	    }
 	}
@@ -723,6 +724,7 @@ int main()
     }
     catch(YAML::ParserException & e) {
 	  std::cout << "houston poseemos problemas..."<<endl;
+	  std::cout << "error en la cadena ingresada ..."<<endl;
 	  std::cout << e.what() <<endl;
     }
 
