@@ -66,4 +66,34 @@
      trans:
      - in: aa
        next: C
-
+- automata: Fourth
+  description: Fourth automata
+  alpha: [hola,a,b,bob,fin]
+  states: [A,B,C,D,E]
+  start: A
+  final: [C,E]
+  delta:
+   - node: A
+     trans:
+     - in: a
+       next: C
+     - in: hola
+       next: B
+   - node: B
+     trans:
+     - in: bob
+       next: C
+     - in: b
+       next: D
+   - node: C
+     trans:
+     - in: fin
+       next: C
+   - node: D
+     trans:
+     - in: fin
+       next: E
+     - in: a
+       next: C
+   - node: E
+     trans:
